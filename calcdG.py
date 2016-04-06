@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 
 Written by Shyam Saladi (saladi@caltech.edu), January 2016
@@ -13,20 +14,63 @@ import numpy as np
 
 
 def main():
+    """Recieves sequences on stdin to calculate dG values for
+    (one per line)
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    None
+    """
     for line in fileinput.input():
         line = line.strip()
         print(line, test_scan_for_best_TM_dGraw(helix=line))
     return
 
 
-def test_scan_for_best_TM_dGraw():
-    # run tests
-    return
-
-
 def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
                            with_length=True):
-    # accomidate different profiles
+    """Calculates dG values
+
+    Parameters
+    ----------
+    helix : str
+
+    profile : Optional[str]
+        Should the sequence should be interpreted as a nucleotide sequence or
+        not (i.e. as a protein sequence)?
+
+    allow_sub : Optional[bool]
+        Should the sequence register be retained when removing unknown
+        characters? If so, unknown characters are replaced by `X`.
+
+    with_length : Optional[bool]
+        Should the sequence register be retained when removing unknown
+        characters? If so, unknown characters are replaced by `X`.
+
+    Returns
+    -------
+    dict
+        The set of properties for the provided sequence
+            {
+                'startidx': The length,
+                'length': The molecular weight in kilodaltons,
+                'dG': The isoelectric point (Bjellqvist's method)
+                    See Bio.SeqUtils.IsoelectricPoint docs,
+            }
+
+    Raises
+    ------
+    None
+    """
+    # accommodate different profiles
     if type(profile) is dict:
         profile = dict
     elif type(profile) is str and profile == 'biological':
@@ -50,7 +94,7 @@ def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
     # lengths to scan over
     for thislen in range(len_min, len(helix) + 1):
         # windows to scan over
-        for startidx in range(0, len(helix) - thislen):
+        for startidx in range(0, len(helix) - thislen + 1):
             # intermediate calcs
             dg = 0
             dg_sum = 0
@@ -66,7 +110,7 @@ def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
             segment_dG = dg_sum + c[0] * np.sqrt(dg_sin_sum**2 + dg_cos_sum**2)
 
             # Correct for length
-            segment_dG += c[1] + c[2]*L + c[3]*L*L
+            segment_dG += c[1] + c[2]*thislen + c[3]*thislen**2
 
             if segment_dG < lowest['dG']:
                 lowest['dG'] = segment_dG
@@ -77,6 +121,35 @@ def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
 
 
 def pos_spec_dG(aa, i, L, profile):
+    """Removing non-standard characters from a sequence
+
+    Parameters
+    ----------
+    aa : str
+        One character
+
+    i : int
+        Should the sequence should be interpreted as a nucleotide sequence or
+        not (i.e. as a protein sequence)?
+
+    L : int
+        Should the sequence register be retained when removing unknown
+        characters? If so, unknown characters are replaced by `X`.
+
+    profile : dict
+        Should the sequence register be retained when removing unknown
+        characters? If so, unknown characters are replaced by `X`.
+
+
+    Returns
+    -------
+    float
+        The sequence with unacceptable characters removed
+
+    Raises
+    ------
+    None
+    """
     pos = 9 * (2 * (i)/(L-1) - 1)  # check if consistent with paper (Shyam)
     if aa == "W" or aa == "Y":
         return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2) + \
@@ -92,6 +165,10 @@ global length_correction_coeff, biological, piover180
 piover180 = math.atan2(1, 1)/45
 length_correction_coeff = (0.27045, 9.29274167549645,
                            -0.64513139783394, 0.00822196628688)
+"""tuple: Various scales for per-residue metrics
+
+Scales include hydrophobicity values via different methods (e.g. GES, octanol)
+"""
 
 biological = {
     'A': (0.1267255, 0.0215152),
@@ -119,7 +196,10 @@ biological = {
     'Y': (0.6275249, 0.0103896, -0.5744404, 0.0947821, 6.9164963),
     'Z': (1.3761092, 0.0099898)
 }
+"""dict of tuples: Various scales for per-residue values
 
+Scales include hydrophobicity values via different methods (e.g. GES, octanol)
+"""
 
 if __name__ == "__main__":
     main()
