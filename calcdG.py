@@ -31,7 +31,7 @@ def main():
     """
     for line in fileinput.input():
         line = line.strip()
-        print(line, test_scan_for_best_TM_dGraw(helix=line))
+        print(line, scan_for_best_TM_dGraw(helix=line))
     return
 
 
@@ -60,10 +60,9 @@ def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
     dict
         The set of properties for the provided sequence
             {
-                'startidx': The length,
-                'length': The molecular weight in kilodaltons,
-                'dG': The isoelectric point (Bjellqvist's method)
-                    See Bio.SeqUtils.IsoelectricPoint docs,
+                'start': The position of the start of the TM,
+                'length': The length of the TM,
+                'dG': The delta G of insertion score
             }
 
     Raises
@@ -121,41 +120,39 @@ def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
 
 
 def pos_spec_dG(aa, i, L, profile):
-    """Removing non-standard characters from a sequence
+    """Calculate the delta G of insertion for a given helix
 
     Parameters
     ----------
     aa : str
-        One character
+        Protein sequence to calculate delta G of insertion for
 
     i : int
-        Should the sequence should be interpreted as a nucleotide sequence or
-        not (i.e. as a protein sequence)?
+        i value (check with paper and fill this in)
 
     L : int
-        Should the sequence register be retained when removing unknown
-        characters? If so, unknown characters are replaced by `X`.
+        L value (check with paper and fill this in)
 
     profile : dict
-        Should the sequence register be retained when removing unknown
-        characters? If so, unknown characters are replaced by `X`.
+        Profile to use for calculation
 
 
     Returns
     -------
     float
-        The sequence with unacceptable characters removed
+        delta G of insertion
 
     Raises
     ------
     None
     """
+
     pos = 9 * (2 * (i)/(L-1) - 1)  # check if consistent with paper (Shyam)
     if aa == "W" or aa == "Y":
         return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2) + \
             profile[aa][2] * \
-                (np.exp(-1*profile[aa][3]*(pos-profile[aa][4])**2) +
-                 np.exp(-1*profile[aa][3]*(pos+profile[aa][4])**2))
+            (np.exp(-1*profile[aa][3]*(pos-profile[aa][4])**2) +
+             np.exp(-1*profile[aa][3]*(pos+profile[aa][4])**2))
     else:
         return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2)
 
