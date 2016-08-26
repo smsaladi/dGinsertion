@@ -8,6 +8,7 @@ Modified by Shyam Saladi, May 2012
 
 """
 
+import warnings
 import numpy as np
 
 biological = {
@@ -32,15 +33,15 @@ biological = {
     'U': (-0.0774786, 0.0984413),
     'V': (-0.2447218, 0.0979201),
     'W': (0.2909390, 0.0189282, -0.5479140, 0.0930222, 6.4736619),
-    'X': (0.6348884, 0.0180273),
+    'X': (0.6348884, 0.0180273), # Undetermined/unknown characters
     'Y': (0.6275249, 0.0103896, -0.5744404, 0.0947821, 6.9164963),
     'Z': (1.3761092, 0.0099898)
 }
 """dict of tuples: Biological deltaG of insertion scales by residue
 """
 
-length_correction_coeff = [0.27045, 9.29274167549645,
-                           -0.64513139783394, 0.00822196628688]
+length_correction_coeff = (0.27045, 9.29274167549645,
+                           -0.64513139783394, 0.00822196628688)
 
 def scan_for_best_TM_dGraw(helix, profile=biological,
                            allow_sub=False,
@@ -67,13 +68,10 @@ def scan_for_best_TM_dGraw(helix, profile=biological,
 
     Returns
     -------
-    dict
-        The set of properties for the provided sequence
-            {
-                'start': The position of the start of the TM,
-                'length': The length of the TM,
-                'dG': The delta G of insertion score
-            }
+    tuple
+        float: deltaG of insertion score,
+        int: Position of the start of the helix,
+        int: Length of identified helix
 
     Raises
     ------
@@ -84,15 +82,19 @@ def scan_for_best_TM_dGraw(helix, profile=biological,
         raise ValueError("Profile type is not recognized")
 
     # set length correction coefficients
-    if not with_length:
-        len_corr_coeff[1:4] = (0, 0, 0)
+    if with_length:
+        cur_corr_coeff = length_correction_coeff
+    else:
+        cur_corr_coeff = (length_correction_coeff[0], 0, 0, 0)
 
     if allow_sub and len(helix) > 9:
         len_min = min(9, len(helix))
     else:
         len_min = len(helix)
 
-    lowest = {'start': -1, 'length': -1, 'dG': 1000000}
+    lowest_start = -1
+    lowest_length = -1
+    lowest_dG = 1000000
 
     # lengths to scan over
     for thislen in range(len_min, len(helix) + 1):
@@ -101,13 +103,13 @@ def scan_for_best_TM_dGraw(helix, profile=biological,
             # current helix:
             segdG = segment_dG(helix[startidx:startidx+thislen],
                                profile=profile,
-                               len_corr=len_corr_coeff)
-            if segdG < lowest['dG']:
-                lowest['dG'] = segdG
-                lowest['start'] = startidx
-                lowest['length'] = thislen
+                               len_corr=cur_corr_coeff)
+            if segdG < lowest_dG:
+                lowest_dG = segdG
+                lowest_start = startidx
+                lowest_length = thislen
 
-    return lowest
+    return (lowest_dG, lowest_start, lowest_length)
 
 
 def segment_dG(helix, profile, len_corr):
@@ -118,10 +120,10 @@ def segment_dG(helix, profile, len_corr):
     helix : str
         Residues that make up the helix
 
-    profile : str
+    profile : dict of tuples
         Energetics profile to use for calculation. Passed to `pos_spec_dG`.
 
-    len_corr : str
+    len_corr : list of floats
         Length correction coefficients.
 
     Returns
@@ -173,8 +175,14 @@ def pos_spec_dG(aa, i, L, profile):
     ------
     None
     """
-
-    pos = 9 * (2 * (i-1)/(L-1) - 1)  # check if consistent with paper (Shyam)
+    if aa not in profile:
+        warnings.warn('%s not in profile: `X` substituted')
+        aa = 'X'
+    try:
+        pos = 9 * (2 * (i-1)/(L-1) - 1)
+    except ZeroDivisionError:
+        warnings.warn("Calculation invalid: len(helix) = 1. Returning NaN")
+        return np.nan
     if len(profile[aa]) == 2:
         return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2)
     elif len(profile[aa]) == 5:
