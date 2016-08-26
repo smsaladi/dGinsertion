@@ -7,165 +7,8 @@ Rewrite of Nanjiang Shu's calc_dG.pl, created 2010-08-27, updated 2010-09-13
 Modified by Shyam Saladi, May 2012
 
 """
-import math
-import fileinput
 
 import numpy as np
-
-
-def main():
-    """Recieves sequences on stdin to calculate dG values for
-    (one per line)
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    None
-    """
-    for line in fileinput.input():
-        line = line.strip()
-        print(line, scan_for_best_TM_dGraw(helix=line))
-    return
-
-
-def scan_for_best_TM_dGraw(helix, profile='biological', allow_sub=False,
-                           with_length=True):
-    """Calculates dG values
-
-    Parameters
-    ----------
-    helix : str
-
-    profile : Optional[str]
-        Should the sequence should be interpreted as a nucleotide sequence or
-        not (i.e. as a protein sequence)?
-
-    allow_sub : Optional[bool]
-        Should the sequence register be retained when removing unknown
-        characters? If so, unknown characters are replaced by `X`.
-
-    with_length : Optional[bool]
-        Should the sequence register be retained when removing unknown
-        characters? If so, unknown characters are replaced by `X`.
-
-    Returns
-    -------
-    dict
-        The set of properties for the provided sequence
-            {
-                'start': The position of the start of the TM,
-                'length': The length of the TM,
-                'dG': The delta G of insertion score
-            }
-
-    Raises
-    ------
-    None
-    """
-    # accommodate different profiles
-    if type(profile) is dict:
-        profile = dict
-    elif type(profile) is str and profile == 'biological':
-        profile = biological
-    else:
-        raise ValueError
-
-    # set length correction coefficients
-    if with_length:
-        c = (length_correction_coeff[0], 0, 0, 0)
-    else:
-        c = length_correction_coeff
-
-    if allow_sub and len(helix) > 9:
-        len_min = min(9, len(helix))
-    else:
-        len_min = len(helix)
-
-    lowest = {'startidx': -1, 'length': -1, 'dG': 1000000}
-
-    # lengths to scan over
-    for thislen in range(len_min, len(helix) + 1):
-        # windows to scan over
-        for startidx in range(0, len(helix) - thislen + 1):
-            # intermediate calcs
-            dg = 0
-            dg_sum = 0
-            dg_sin_sum = 0
-            dg_cos_sum = 0
-            # add for residue at each position
-            for i in range(thislen):
-                dg = pos_spec_dG(helix[startidx+i], i, thislen, profile)
-                dg_sum += dg
-                dg_sin_sum += dg * np.sin(100 * (i) * piover180)
-                dg_cos_sum += dg * np.cos(100 * (i) * piover180)
-
-            segment_dG = dg_sum + c[0] * np.sqrt(dg_sin_sum**2 + dg_cos_sum**2)
-
-            # Correct for length
-            segment_dG += c[1] + c[2]*thislen + c[3]*thislen**2
-
-            if segment_dG < lowest['dG']:
-                lowest['dG'] = segment_dG
-                lowest['start'] = startidx
-                lowest['length'] = thislen
-
-    return lowest
-
-
-def pos_spec_dG(aa, i, L, profile):
-    """Calculate the delta G of insertion for a given helix
-
-    Parameters
-    ----------
-    aa : str
-        Protein sequence to calculate delta G of insertion for
-
-    i : int
-        i value (check with paper and fill this in)
-
-    L : int
-        L value (check with paper and fill this in)
-
-    profile : dict
-        Profile to use for calculation
-
-
-    Returns
-    -------
-    float
-        delta G of insertion
-
-    Raises
-    ------
-    None
-    """
-
-    pos = 9 * (2 * (i)/(L-1) - 1)  # check if consistent with paper (Shyam)
-    if aa == "W" or aa == "Y":
-        return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2) + \
-            profile[aa][2] * \
-            (np.exp(-1*profile[aa][3]*(pos-profile[aa][4])**2) +
-             np.exp(-1*profile[aa][3]*(pos+profile[aa][4])**2))
-    else:
-        return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2)
-
-
-global length_correction_coeff, biological, piover180
-
-piover180 = math.atan2(1, 1)/45
-length_correction_coeff = (0.27045, 9.29274167549645,
-                           -0.64513139783394, 0.00822196628688)
-"""tuple: Various scales for per-residue metrics
-
-Scales include hydrophobicity values via different methods (e.g. GES, octanol)
-"""
 
 biological = {
     'A': (0.1267255, 0.0215152),
@@ -193,92 +36,151 @@ biological = {
     'Y': (0.6275249, 0.0103896, -0.5744404, 0.0947821, 6.9164963),
     'Z': (1.3761092, 0.0099898)
 }
-"""dict of tuples: Various scales for per-residue values
-
-Scales include hydrophobicity values via different methods (e.g. GES, octanol)
+"""dict of tuples: Biological deltaG of insertion scales by residue
 """
 
-if __name__ == "__main__":
-    main()
+length_correction_coeff = [0.27045, 9.29274167549645,
+                           -0.64513139783394, 0.00822196628688]
 
-"""
-# Unused here, but part of original script
+def scan_for_best_TM_dGraw(helix, profile=biological,
+                           allow_sub=False,
+                           with_length=False,
+                           len_corr_coeff=length_correction_coeff):
+    """Calculates dG values
 
-opm = { 'A'  : (   -0.35564862900004,   0.01332130021828),
-        'C'  : (   -0.03501895680136,   0.99999999999436),
-        'D'  : (    1.59956132209071,   0.00947489754213),
-        'E'  : (    1.44456437954037,   0.00991793633818),
-        'F'  : (   -0.58372719807522,   0.01010636364230),
-        'G'  : (   -0.21135828304947,   0.00345594635635),
-        'H'  : (    0.98713634884570,   0.21148435891199),
-        'I'  : (   -0.53139640795947,   0.02460014333285),
-        'K'  : (    1.65710232354055,   0.01319508610467),
-        'L'  : (   -0.40964877807885,   0.01877474391562),
-        'M'  : (   -0.31236254433492,   0.01063405577742),
-        'N'  : (    0.95392420347656,   0.01345897376904),
-        'P'  : (    0.47894080618646,   0.02083850626139),
-        'Q'  : (    1.13718143293910,   0.01049378516167),
-        'R'  : (    1.45575556617996,   0.01812501297927),
-        'S'  : (    0.16601192335102,   0.00036243232009),
-        'T'  : (   -0.04699968531037,   0.05979821658957),
-        'V'  : (   -0.45345841058687,   0.02575637636981),
-        'W'  : (   -0.97553693183770,   0.00549871324932,   0.39792640886763,   0.05557263615780,    0.00000000350551),
-        'X'  : (      0.34521774973501,   0.01890642845475),
-        'Y'  : (   -0.47290915514074,   0.01054870058203,    0.51698866596097,   0.06638567043267,   -2.21478619615780)
-        }
+    Parameters
+    ----------
+    helix : str
 
-kdo = { 'A' : ( -1.8, 0 ),
-    'B' : (  3.5, 0 ),
-    'C' : ( -2.5, 0 ),
-    'D' : (  3.5, 0 ),
-    'E' : (  3.5, 0 ),
-    'F' : ( -2.8, 0 ),
-    'G' : (  0.4, 0 ),
-    'H' : (  3.2, 0 ),
-    'I' : ( -4.5, 0 ),
-    'K' : (  3.9, 0 ),
-    'L' : ( -3.8, 0 ),
-    'M' : ( -1.9, 0 ),
-    'N' : (  3.5, 0 ),
-    'P' : (  1.6, 0 ),
-    'Q' : (  3.5, 0 ),
-    'R' : (  4.5, 0 ),
-    'S' : (  0.8, 0 ),
-    'T' : (  0.7, 0 ),
-    'U' : ( -1.9, 0 ),
-    'V' : ( -4.2, 0 ),
-    'W' : (  0.9, 0, 0, 0, 0 ),
-    'X' : (  0.5, 0 ),
-    'Y' : (  1.3, 0, 0, 0, 0 ),
-    'Z' : (  3.5, 0 )
-    }
+    profile : Optional[dict]
+        Residue profile for deltaG calculation
 
-zhl = {'A' : (0.38 , 0 ),
-    'B' : (2.45 , 0 ),
-    'C' : (0.30 , 0 ),
-    'D' : (3.27 , 0 ),
-    'E' : (2.90 , 0 ),
-    'F' : (1.98 , 0 ),
-    'G' : (0.19 , 0 ),
-    'H' : (1.44 , 0 ),
-    'I' : (1.97 , 0 ),
-    'K' : (3.46 , 0 ),
-    'L' : (1.82 , 0 ),
-    'M' : (1.40 , 0 ),
-    'N' : (1.62 , 0 ),
-    'P' : (1.44 , 0 ),
-    'Q' : (1.84 , 0 ),
-    'R' : (2.57 , 0 ),
-    'S' : (0.53 , 0 ),
-    'T' : (0.32 , 0 ),
-    'U' : (1.40 , 0 ),
-    'V' : (1.46 , 0 ),
-    'W' : (1.53 , 0, 0, 0, 0 ),
-    'X' : (1.55 , 0 ),
-    'Y' : (0.49 , 0, 0, 0, 0 ),
-    'Z' : (2,37 , 0 )
-    }
+    allow_sub : Optional[bool]
+        Allow subsequences when searching for helix with lowest deltaG of
+        insertion
 
-aa2nr  =  { "A" : 1,"C" : 2,"D" : 3,"E" : 4,"F" : 5,"G" : 6,"H" : 7,"I" : 8,"K" : 9,"L" : 10,
-          "M" : 11,"N" : 12,"P" : 13,"Q" : 14,"R" : 15,"S" : 16,"T" : 17,"V" : 18,"W" : 19, "Y" : 20}
-"""
+    with_length : Optional[bool]
+        Apply length correction to deltaG calculations
+
+    length_correction_coeff : Optional[list(int)]
+        Values for length correction
+
+    Returns
+    -------
+    dict
+        The set of properties for the provided sequence
+            {
+                'start': The position of the start of the TM,
+                'length': The length of the TM,
+                'dG': The delta G of insertion score
+            }
+
+    Raises
+    ------
+    None
+    """
+    # accommodate different profiles
+    if not isinstance(profile, dict):
+        raise ValueError("Profile type is not recognized")
+
+    # set length correction coefficients
+    if not with_length:
+        len_corr_coeff[1:4] = (0, 0, 0)
+
+    if allow_sub and len(helix) > 9:
+        len_min = min(9, len(helix))
+    else:
+        len_min = len(helix)
+
+    lowest = {'start': -1, 'length': -1, 'dG': 1000000}
+
+    # lengths to scan over
+    for thislen in range(len_min, len(helix) + 1):
+        # windows to scan over
+        for startidx in range(0, len(helix) - thislen + 1):
+            # current helix:
+            segdG = segment_dG(helix[startidx:startidx+thislen],
+                               profile=profile,
+                               len_corr=len_corr_coeff)
+            if segdG < lowest['dG']:
+                lowest['dG'] = segdG
+                lowest['start'] = startidx
+                lowest['length'] = thislen
+
+    return lowest
+
+
+def segment_dG(helix, profile, len_corr):
+    """Calculate deltaG of insertion for a single defined helix
+
+    Parameters
+    ----------
+    helix : str
+        Residues that make up the helix
+
+    profile : str
+        Energetics profile to use for calculation. Passed to `pos_spec_dG`.
+
+    len_corr : str
+        Length correction coefficients.
+
+    Returns
+    -------
+    float
+        delta G of insertion
+
+    Raises
+    ------
+    None
+    """
+    dg_sum = 0
+    dg_sin_sum = 0
+    dg_cos_sum = 0
+
+    for i, res in enumerate(helix):
+        dg = pos_spec_dG(res, i+1, len(helix), profile)
+        dg_sum += dg
+        dg_sin_sum += dg * np.sin(100 * i * np.pi / 180)
+        dg_cos_sum += dg * np.cos(100 * i * np.pi / 180)
+
+    return dg_sum + len_corr[0] * np.sqrt(dg_sin_sum**2 + dg_cos_sum**2) + \
+        len_corr[1] + len_corr[2]*len(helix) + len_corr[3]*len(helix)**2
+
+
+def pos_spec_dG(aa, i, L, profile):
+    """Calculate the delta G contribution for a single residue within a helix
+
+    Parameters
+    ----------
+    aa : str
+        Residue identity
+
+    i : int
+        position in helix
+
+    L : int
+        length of helix
+
+    profile : dict
+        Energetics profile to use for calculation
+
+    Returns
+    -------
+    float
+        delta G contribution
+
+    Raises
+    ------
+    None
+    """
+
+    pos = 9 * (2 * (i-1)/(L-1) - 1)  # check if consistent with paper (Shyam)
+    if len(profile[aa]) == 2:
+        return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2)
+    elif len(profile[aa]) == 5:
+        return profile[aa][0] * np.exp(-1*profile[aa][1]*pos**2) + \
+            profile[aa][2] * \
+            (np.exp(-1*profile[aa][3]*(pos-profile[aa][4])**2) +
+             np.exp(-1*profile[aa][3]*(pos+profile[aa][4])**2))
+    else:
+        raise ValueError("Profile type for this residue is unrecognized")
