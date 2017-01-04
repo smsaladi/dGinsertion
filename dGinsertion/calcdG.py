@@ -8,8 +8,12 @@ Modified by Shyam Saladi, May 2012
 
 """
 
+import sys
 import warnings
+import argparse
+
 import numpy as np
+import Bio.SeqIO
 
 biological = {
     'A': (0.1267255, 0.0215152),
@@ -192,3 +196,37 @@ def pos_spec_dG(aa, i, L, profile):
              np.exp(-1*profile[aa][3]*(pos+profile[aa][4])**2))
     else:
         raise ValueError("Profile type for this residue is unrecognized")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Calculate deltaG of TM insertion.')
+
+    parser.add_argument('fna_filename',
+        metavar='fna_file',
+        type=str,
+        default='-',
+        help='FASTA-formatted nucleotide file of the protein sequences'
+             '(stdin by default)')
+
+    parser.add_argument('--output',
+        metavar='output_file',
+        type=str,
+        default=sys.stdout,
+        help='Specifies name of file to write to (stdout by default)')
+
+    args = parser.parse_args()
+
+    if args.fna_filename == '-':
+        print("Reading sequences from stdin", file=sys.stderr)
+        seq_records = Bio.SeqIO.parse(args.fna_file, "fasta")
+    else:
+        with open(args.fna_filename, 'r+') as fh:
+            seq_records = list(Bio.SeqIO.parse(fh, "fasta"))
+
+    for record in seq_records:
+        print(scan_for_best_TM_dGraw(str(record.seq)))
+
+
+if __name__ == '__main__':
+    main()
