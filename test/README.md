@@ -14,5 +14,5 @@ cat Daley_gfp.segs | ../calc_dG_v2.pl > Daley_gfp.segs.dGpred_local
 ```
 
 Because changes were made to the local code without formal testing, the output
-from both the local code as well as the online [service](dgpred.cbr.su.se)
+from both the local code as well as the online [service](http://dgpred.cbr.su.se)
 are saved.
