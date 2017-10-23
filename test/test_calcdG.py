@@ -2,11 +2,12 @@
 """
     Test functions for calcdG.py
 """
+import pytest
 
+@pytest.mark.skip(reason="tests not yet implmented")
 def test_scan_for_best_TM_dGraw():
-    # run tests
     return
 
+@pytest.mark.skip(reason="tests not yet implmented")
 def test_pos_spec_dG():
-    # run tests
     return

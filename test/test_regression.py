@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
 
+import os.path
+
 import numpy as np
 import pandas as pd
 
-import dGpred
+import dGinsertion
 
 def dg_score_compare(old_output_fn, **kwargs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    old_output_fn = os.path.join(dir_path, old_output_fn)
+
     calc = pd.read_csv(old_output_fn, sep='\t', names=['seq', 'olddG'])
 
     calc = pd.concat([calc,
         calc['seq'].str.replace('.', '').
-                    apply(dGpred.scan_for_best_TM_dGraw, **kwargs).
+                    apply(dGinsertion.scan_for_best_TM_dGraw, **kwargs).
                     apply(pd.Series, index=['newdG', 'start', 'length'])],
                                     axis=1)
 
@@ -47,6 +52,3 @@ def test_calcdG_web_lencorr_subseq_compare():
                      allow_sub=True, with_length=True)
     return
 
-
-if __name__ == '__main__':
-    test_calcdG_web_lencorr_subseq_compare()
