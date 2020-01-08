@@ -8,6 +8,8 @@ Modified by Shyam Saladi, May 2012
 
 """
 
+from __future__ import print_function, division
+
 import sys
 import warnings
 import argparse
